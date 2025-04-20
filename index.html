@@ -9,30 +9,36 @@
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.2/dist/full.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        .markdown-content {
+        .document-content {
             max-width: 800px;
             margin: 0 auto;
             padding: 2rem;
         }
-        .markdown-content h1 {
+        .document-content h1 {
             @apply text-4xl font-bold mb-8 text-primary;
             border-bottom: 3px solid;
             padding-bottom: 0.5rem;
         }
-        .markdown-content h2 {
+        .document-content h2 {
             @apply text-2xl font-semibold mt-6 mb-4 text-secondary;
         }
-        .markdown-content table {
+        .document-content table {
             @apply table table-zebra my-6 shadow-lg;
         }
-        .markdown-content code {
+        .document-content code {
             @apply px-2 py-1 bg-base-300 rounded-md;
         }
-        .markdown-content pre {
+        .document-content pre {
             @apply mockup-code bg-base-300 p-4 rounded-box my-6;
         }
-        .markdown-content ul {
+        .document-content ul {
             @apply list-disc pl-6 space-y-2;
+        }
+        .word-content {
+            @apply prose max-w-none;
+        }
+        .word-content img {
+            @apply my-4 mx-auto;
         }
     </style>
 </head>
@@ -47,9 +53,10 @@
         </div>
         <div class="flex-none gap-4">
             <div class="tabs">
-                <a class="tab tab-lg" onclick="loadGuide('Guide_3D.md')">3D</a> 
-                <a class="tab tab-lg" onclick="loadGuide('Guide_Laser.md')">Laser</a>
-                <a class="tab tab-lg" onclick="loadGuide('template.md')">Template</a>
+                <a class="tab tab-lg" onclick="loadMarkdown('Guide_3D.md')">3D</a> 
+                <a class="tab tab-lg" onclick="loadMarkdown('Guide_Laser.md')">Laser</a>
+                <a class="tab tab-lg" onclick="loadMarkdown('template.md')">Template</a>
+                <a class="tab tab-lg" onclick="loadWord('guide_word.docx')">Word</a>
             </div>
             <button class="btn btn-circle btn-ghost" onclick="toggleTheme()">
                 <i class="fas fa-moon"></i>
@@ -59,18 +66,19 @@
 
     <!-- Content -->
     <main class="p-8">
-        <div id="content" class="bg-base-100 rounded-box shadow-lg markdown-content"></div>
+        <div id="content" class="bg-base-100 rounded-box shadow-lg document-content"></div>
         <div id="loading" class="text-center py-16 hidden">
             <span class="loading loading-dots loading-lg"></span>
         </div>
     </main>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
+    <script src="https://unpkg.com/mammoth@1.4.0/mammoth.browser.min.js"></script>
     <script>
         let currentTheme = localStorage.getItem('theme') || 'dark';
         document.documentElement.setAttribute('data-theme', currentTheme);
 
-        async function loadGuide(filename) {
+        async function loadMarkdown(filename) {
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('content').innerHTML = '';
             
@@ -105,6 +113,49 @@
             }
         }
 
+        async function loadWord(filename) {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('content').innerHTML = '';
+            
+            try {
+                const response = await fetch(filename);
+                if(!response.ok) throw new Error('Fichier Word introuvable');
+                const arrayBuffer = await response.arrayBuffer();
+                
+                const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+                
+                // Ajout des classes DaisyUI au HTML généré
+                let html = result.value
+                    .replace(/<p>/g, '<p class="mb-4">')
+                    .replace(/<ul>/g, '<ul class="list-disc pl-6 space-y-2">')
+                    .replace(/<ol>/g, '<ol class="list-decimal pl-6 space-y-2">')
+                    .replace(/<h1>/g, '<h1 class="text-4xl font-bold mb-8 text-primary border-b-2 pb-2">')
+                    .replace(/<h2>/g, '<h2 class="text-2xl font-semibold mt-6 mb-4 text-secondary">');
+                
+                document.getElementById('content').innerHTML = `
+                    <div class="word-content">
+                        ${html}
+                    </div>
+                    ${result.messages.length > 0 ? `
+                    <div class="alert alert-warning mt-4">
+                        <i class="fas fa-info-circle"></i>
+                        Certains éléments du document n'ont pas pu être affichés correctement.
+                    </div>
+                    ` : ''}
+                `;
+                
+                document.getElementById('loading').classList.add('hidden');
+            } catch(error) {
+                document.getElementById('content').innerHTML = `
+                    <div class="alert alert-error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        ${error.message}
+                    </div>
+                `;
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
         function toggleTheme() {
             currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', currentTheme);
@@ -112,7 +163,7 @@
         }
 
         // Charger le premier guide
-        loadGuide('Guide_3D.md');
+        loadMarkdown('Guide_3D.md');
     </script>
 </body>
 </html>
