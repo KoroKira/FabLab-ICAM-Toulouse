@@ -72,10 +72,6 @@
         </div>
         <div class="flex-none gap-4">
             <div class="tabs">
-                <a class="tab tab-lg" onclick="loadMarkdown('Guide_3D.md')">3D</a> 
-                <a class="tab tab-lg" onclick="loadMarkdown('Guide_Laser.md')">Laser</a>
-                <a class="tab tab-lg" onclick="loadMarkdown('template.md')">Template</a>
-                <a class="tab tab-lg" onclick="loadWord('Guide_Orca_Pole_Inge.docx')">Word</a>
                 <a class="tab tab-lg" onclick="loadPDF('Guide_Orca_Pole_Inge.pdf')">PDF</a>
             </div>
             <button class="btn btn-circle btn-ghost" onclick="toggleTheme()">
@@ -260,8 +256,8 @@
             localStorage.setItem('theme', currentTheme);
         }
 
-        // Charger le premier guide
-        loadMarkdown('Guide_3D.md');
+        // Charger le PDF par défaut au démarrage
+        loadPDF('Guide_Orca_Pole_Inge.pdf');
     </script>
 </body>
 </html>
