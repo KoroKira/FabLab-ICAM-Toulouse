@@ -40,6 +40,25 @@
         .word-content img {
             @apply my-4 mx-auto;
         }
+        #pdf-container {
+            width: 100%;
+            overflow: auto;
+        }
+        #pdf-viewer {
+            width: 100%;
+            min-height: 500px;
+            border: 1px solid #2d3748;
+            border-radius: 0.5rem;
+        }
+        .pdf-controls {
+            @apply flex gap-4 items-center justify-center my-4;
+        }
+        .pdf-controls button {
+            @apply btn btn-sm;
+        }
+        .pdf-controls span {
+            @apply text-sm;
+        }
     </style>
 </head>
 <body class="min-h-screen bg-base-200">
@@ -56,7 +75,8 @@
                 <a class="tab tab-lg" onclick="loadMarkdown('Guide_3D.md')">3D</a> 
                 <a class="tab tab-lg" onclick="loadMarkdown('Guide_Laser.md')">Laser</a>
                 <a class="tab tab-lg" onclick="loadMarkdown('template.md')">Template</a>
-                <a class="tab tab-lg" onclick="loadWord('guide_word.docx')">Word</a>
+                <a class="tab tab-lg" onclick="loadWord('Guide_Orca_Pole_Inge.docx')">Word</a>
+                <a class="tab tab-lg" onclick="loadPDF('Guide_Orca_Pole_Inge.pdf')">PDF</a>
             </div>
             <button class="btn btn-circle btn-ghost" onclick="toggleTheme()">
                 <i class="fas fa-moon"></i>
@@ -72,11 +92,19 @@
         </div>
     </main>
 
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
     <script src="https://unpkg.com/mammoth@1.4.0/mammoth.browser.min.js"></script>
     <script>
+        // Initialiser PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+        
         let currentTheme = localStorage.getItem('theme') || 'dark';
         document.documentElement.setAttribute('data-theme', currentTheme);
+        let currentPdf = null;
+        let currentPageNum = 1;
+        let pdfDoc = null;
 
         async function loadMarkdown(filename) {
             document.getElementById('loading').classList.remove('hidden');
@@ -87,7 +115,6 @@
                 if(!response.ok) throw new Error('Fichier introuvable');
                 const md = await response.text();
                 
-                // Custom renderer pour améliorer le style
                 const renderer = {
                     heading(text, level) {
                         return `<h${level} class="heading-${level}">${text}</h${level}>`;
@@ -103,13 +130,7 @@
                 document.getElementById('loading').classList.add('hidden');
 
             } catch(error) {
-                document.getElementById('content').innerHTML = `
-                    <div class="alert alert-error">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        ${error.message}
-                    </div>
-                `;
-                document.getElementById('loading').classList.add('hidden');
+                showError(error.message);
             }
         }
 
@@ -124,7 +145,6 @@
                 
                 const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
                 
-                // Ajout des classes DaisyUI au HTML généré
                 let html = result.value
                     .replace(/<p>/g, '<p class="mb-4">')
                     .replace(/<ul>/g, '<ul class="list-disc pl-6 space-y-2">')
@@ -146,14 +166,92 @@
                 
                 document.getElementById('loading').classList.add('hidden');
             } catch(error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadPDF(filename) {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('content').innerHTML = '';
+            
+            try {
+                const response = await fetch(filename);
+                if(!response.ok) throw new Error('Fichier PDF introuvable');
+                
+                const arrayBuffer = await response.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+                
+                currentPageNum = 1;
+                renderPDFPage(currentPageNum);
+                
                 document.getElementById('content').innerHTML = `
-                    <div class="alert alert-error">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        ${error.message}
+                    <div id="pdf-container">
+                        <div class="pdf-controls">
+                            <button onclick="prevPage()" class="btn btn-sm" id="prev-btn" disabled>
+                                <i class="fas fa-chevron-left"></i> Précédent
+                            </button>
+                            <span>Page <span id="page-num">${currentPageNum}</span> / <span id="page-count">${pdfDoc.numPages}</span></span>
+                            <button onclick="nextPage()" class="btn btn-sm" id="next-btn" ${pdfDoc.numPages <= 1 ? 'disabled' : ''}>
+                                Suivant <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <canvas id="pdf-viewer"></canvas>
                     </div>
                 `;
+                
                 document.getElementById('loading').classList.add('hidden');
+                
+            } catch(error) {
+                showError(error.message);
             }
+        }
+
+        async function renderPDFPage(pageNum) {
+            if(!pdfDoc) return;
+            
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.5 });
+            const canvas = document.getElementById('pdf-viewer');
+            const context = canvas.getContext('2d');
+            
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+            
+            // Mettre à jour les contrôles de pagination
+            document.getElementById('page-num').textContent = pageNum;
+            document.getElementById('page-count').textContent = pdfDoc.numPages;
+            
+            document.getElementById('prev-btn').disabled = pageNum <= 1;
+            document.getElementById('next-btn').disabled = pageNum >= pdfDoc.numPages;
+        }
+
+        function nextPage() {
+            if(currentPageNum < pdfDoc.numPages) {
+                currentPageNum++;
+                renderPDFPage(currentPageNum);
+            }
+        }
+
+        function prevPage() {
+            if(currentPageNum > 1) {
+                currentPageNum--;
+                renderPDFPage(currentPageNum);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    ${message}
+                </div>
+            `;
+            document.getElementById('loading').classList.add('hidden');
         }
 
         function toggleTheme() {
